@@ -8,18 +8,132 @@ output:
 
 ## Loading and preprocessing the data
 
+```{r}
+setwd("C:/RWD")
+unzip(zipfile="repdata-data-activity.zip")
+activity <- read.csv("activity.csv")
 
+```
 
 ## What is mean total number of steps taken per day?
 
-
+```{r}
+total.steps <- tapply(activity$steps, activity$date, FUN=sum, na.rm=TRUE)
+hist(total.steps, main = paste("Histogram of Total Number of Steps Taken per Day"), xlab="Sum of Steps")
+print(paste0("Mean of the total number of steps taken per day is : ",mean(total.steps, na.rm=TRUE)))
+print(paste0("Median  of the total number of steps taken per day is : ",median(total.steps, na.rm=TRUE)))
+```
 
 ## What is the average daily activity pattern?
 
-
+```{r}
+library(ggplot2)
+avgStepsInt <- tapply(activity$steps,activity$interval,mean, na.rm=TRUE)
+plot(names(avgStepsInt), avgStepsInt, type="l", main = "Time Series Plot", xlab="5-minute Intervals", ylab="Avg Steps")
+print(paste0("Interval ", as.numeric(names(which.max(avgStepsInt))) , " contains the maximum number of steps."))
+```
 
 ## Imputing missing values
 
+```{r}
+print(paste0("There are ", sum(is.na(activity)) , " missing values in the activity dataset."))
+```
 
+ To fill all of the missing values in the dataset they are going to be replaced with the mean value for that 5-minute interval.
+
+Create a copy of the dataset
+```{r}
+activityNoNA <- activity
+```
+
+There are 288 5-minute periods per day and 61 days. We already have the mean per period in **avgStepsInt** for the 288 period. So lets now we will multiply that by 61 so we can compare to **activityNoNA** and replace.
+
+```{r}
+allMeanSteps <- rep(avgStepsInt, 61)
+```
+
+The steps before replacement
+
+```{r}
+rawSteps <- activityNoNA$steps
+```
+
+Find any values that are NA in the raw steps data
+
+```{r}
+stepsNA <- is.na(rawSteps)
+```
+
+Now replace these values with their corresponding mean
+
+```{r}
+rawSteps[stepsNA] <- allMeanSteps[stepsNA]
+```
+
+Now replace in our new data set
+
+```{r}
+activityNoNA$steps <- rawSteps
+```
+
+Get the sums of the new data that we will use in the histogram
+
+```{r}
+newTotalSteps <- tapply(activityNoNA$steps,activityNoNA$date,sum, na.rm=TRUE)
+```
+
+Okay now we get the new Histogram and the mean/medians
+
+```{r}
+hist(newTotalSteps, main = paste("Histogram of Total Number of Steps Taken per Day"), xlab="Sum of Steps")
+```
+
+now we calculate the new mean/medians
+
+```{r}
+meanSteps <- mean(newTotalSteps)
+medianSteps <- median(newTotalSteps)
+print(paste0("Mean total number of steps taken per day is: ", meanSteps))
+print(paste0("Median total number of steps taken per day is: ", medianSteps))
+```
+
+The mean and median are higher and equal. The histogram is higher as a result of showing a summed figure for each interval and we replaced NA's with values. 
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+I have commented the code below. Basically we just loop through the dataset and see if the interval was on a weekend or weekday
+
+```{r}
+#Create a vector to compare to for the weekend days
+weekend <- c("Sunday","Saturday")
+#this we use to store where the interval was during a weekday or weekend
+dayWeek <- c()
+#Now we check which and store
+for (i in 1:length(activityNoNA$steps))
+    {
+    if (any(weekdays(as.Date(activityNoNA[i,2])) == weekend)) 
+        {
+            #it was a weekend
+            dayWeek[i] <- "weekend"  }
+            #a weekday
+        else { dayWeek[i] <- "weekday"
+         }
+    }
+## Bind to our dataset
+    activityNoNA <- cbind(activityNoNA,dayWeek)
+```
+
+Add the library lattice and reshape
+
+```{r}
+library(lattice)
+library(reshape)
+```
+
+Now we group by interval and dayweek and get the mean for steps. Then melt to make it easier to plot then plot.
+
+```{r}
+data <- tapply(activityNoNA$steps,list(activityNoNA$interval,activityNoNA$dayWeek),mean)
+data <- melt(data)
+xyplot(value ~ X1 | X2 ,data=data,panel=panel.lines,layout=c(1,2),xlab="TimeScale",ylab="Steps")
+```
